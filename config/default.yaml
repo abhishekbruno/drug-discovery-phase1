@@ -1,0 +1,25 @@
+experiment_id: example-1iep
+protein:
+  input: ../data/benchmarks/1iep/1iep.pdb
+  chains: [A]
+  reference_residue: A:201:STI
+  water_policy: remove
+  heterogen_policy: remove_listed
+  remove_residues: ["A:1:CL", "A:2:CL", "A:4:CL", "A:5:CL"]
+ligands: ../data/ligands/example.csv
+output_dir: ../results
+grid:
+  mode: reference
+  padding: 5.0
+docking:
+  executable: vina
+  scoring: vina
+  seed: 20261113
+  cpu: 2
+  workers: 1
+  exhaustiveness: 8
+  num_modes: 9
+  energy_range: 4.0
+  timeout_seconds: 1800
+ligand_seed: 17
+preserve_sdf_coordinates: false

@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+# Preserve scientific input/output bytes so recorded SHA-256 checks survive a clone.
+data/** -text
+evidence/** -text

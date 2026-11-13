@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+results/
+.streamlit/secrets.toml
+
+work/
+tools/vina.exe
+data/benchmarks/prior-workspace-evidence/
+*.lock
+

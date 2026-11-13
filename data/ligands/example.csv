@@ -1,0 +1,4 @@
+compound_id,smiles
+ethanol,CCO
+acetanilide,CC(=O)Nc1ccccc1
+invalid_example,not_a_smiles

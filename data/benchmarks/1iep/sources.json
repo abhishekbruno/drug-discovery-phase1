@@ -1,0 +1,22 @@
+{
+  "1iep.pdb": {
+    "url": "https://files.rcsb.org/download/1IEP.pdb",
+    "retrieved_or_verified_at": "2026-11-13T08:22:37.711084+00:00",
+    "sha256": "577386b4b8bc58a570facba0c8a843386842caef5ed7b60106c685d0f68d4218"
+  },
+  "STI.cif": {
+    "url": "https://files.rcsb.org/ligands/download/STI.cif",
+    "retrieved_or_verified_at": "2026-11-13T08:22:37.718235+00:00",
+    "sha256": "2829bd3174ecf9e9dff3e76c080017fe5436858aa3d65756e4078615020a728c"
+  },
+  "tutorial_receptorH.pdb": {
+    "url": "https://raw.githubusercontent.com/forlilab/AutoDock-Vina/bb64e5e26b520569a86360d69248069b5e665b3f/example/basic_docking/data/1iep_receptorH.pdb",
+    "retrieved_or_verified_at": "2026-11-13T08:22:37.725667+00:00",
+    "sha256": "5f6aee6029f9a2a2c2be32d4eb948ae70808690573e1b69a0850cdffd7048ca7"
+  },
+  "tutorial_ligand.sdf": {
+    "url": "https://raw.githubusercontent.com/forlilab/AutoDock-Vina/bb64e5e26b520569a86360d69248069b5e665b3f/example/basic_docking/data/1iep_ligand.sdf",
+    "retrieved_or_verified_at": "2026-11-13T08:22:37.732809+00:00",
+    "sha256": "051b8742c32adc05c07fb486a4e7c9327f84e131cee33ac4e6a568d07553eb38"
+  }
+}

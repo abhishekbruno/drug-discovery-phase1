@@ -1,0 +1,10 @@
+name: dockpipe
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.10
+  - pip=25.0.1
+  - pip:
+      - -e .[test,ui]
+# Install the official Vina 1.2.7 binary with scripts/install_vina.py.
+# Core scientific package pins are declared in pyproject.toml.

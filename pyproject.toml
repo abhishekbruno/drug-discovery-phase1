@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docking-pipeline"
+version = "0.1.0"
+description = "Reproducible CPU AutoDock Vina pipeline"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "rdkit==2025.3.6", "meeko==0.7.1", "biopython==1.85", "gemmi==0.7.3",
+  "numpy==2.2.6", "pandas==2.2.3", "scipy==1.15.3", "pydantic==2.11.7", "PyYAML==6.0.2"
+]
+[project.optional-dependencies]
+test = ["pytest==8.4.2"]
+ui = ["streamlit==1.50.0", "plotly==6.3.1"]
+[project.scripts]
+dockpipe = "docking_pipeline.cli:main"
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["integration: executes real molecular preparation and Vina", "benchmark: executes 1IEP redocking"]
