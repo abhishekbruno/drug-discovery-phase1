@@ -1,0 +1,76 @@
+{
+  "identity": "2921489f5979f8a8302a28e75baa442edd02817f219866f44f0d8c3760a1dea9",
+  "started_at": "2026-11-13T18:20:01.620950+00:00",
+  "input_hashes": {
+    "ligands.sdf": "c83a6cb14e36100d24729dd69fb3e210726638a3291b94c2c245e64e0854063c",
+    "protein.pdb": "577386b4b8bc58a570facba0c8a843386842caef5ed7b60106c685d0f68d4218"
+  },
+  "configuration": {
+    "experiment_id": "ci-1iep",
+    "protein": {
+      "input": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/data/benchmarks/1iep/1iep.pdb",
+      "chains": [
+        "A"
+      ],
+      "reference_residue": "A:201:STI",
+      "water_policy": "remove",
+      "heterogen_policy": "error",
+      "remove_residues": [
+        "A:1:CL",
+        "A:2:CL",
+        "A:4:CL",
+        "A:5:CL"
+      ],
+      "altloc": null,
+      "residue_templates": {}
+    },
+    "ligands": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/data/benchmarks/1iep/reference.sdf",
+    "output_dir": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/results",
+    "grid": {
+      "mode": "manual",
+      "center": [
+        15.19,
+        53.903,
+        16.917
+      ],
+      "size": [
+        20.0,
+        20.0,
+        20.0
+      ],
+      "padding": 5.0
+    },
+    "docking": {
+      "executable": "vina",
+      "scoring": "vina",
+      "seed": 20261113,
+      "cpu": 2,
+      "workers": 1,
+      "exhaustiveness": 32,
+      "num_modes": 9,
+      "energy_range": 4.0,
+      "timeout_seconds": 1800
+    },
+    "ligand_seed": 17,
+    "preserve_sdf_coordinates": false
+  },
+  "receptor": "receptor-001",
+  "receptor_hashes": {
+    "inventory.json": "b99e4a0ab2d1a9e922fe46661117fa90665d3ddf56d6ed8a4b8045e69ad04afc",
+    "manifest.json": "5bc3d0939686f0a1e7fa339bb7e0a7f7a53678bf3aa88aff500cb44a71bb46e2",
+    "original.pdb": "577386b4b8bc58a570facba0c8a843386842caef5ed7b60106c685d0f68d4218",
+    "preparation.command.json": "3ec7dfcb8f27715106ec0690f5f875d3fa39e603b3b2b6d43874685b5cd0c7c5",
+    "preparation.log": "6d9f36644c80ade67430a5497749e5863ee446a329e80c6dc4895f5594e88b8b",
+    "prepared.pdb": "10be168d1f2739c266726a5f05e1b079501a30014096f6f8d0f04d18b2d020b0",
+    "receptor.json": "b075a1fc3d6dde41d40f36bfd306bd6f1ed0e1defd80a17ea337ca0f02c41134",
+    "receptor.pdbqt": "5cebbdc4182f6adae0c1da13bf57bbd2161c9e93cc9074a96c1232620e0abf07",
+    "reference.pdb": "810ebad93f4568b067073a51440089d43795cf9a5226725ac2dd05b308a02af2",
+    "selected.pdb": "ac8fee962258f6115553b105e8121bc501b94a22af57c474aa3641b9376930e0"
+  },
+  "ligand_status_hashes": {
+    "imatinib": "ede266b50b66b1e7426f4aef481b121b04cd43f2fedafa36adc4cc4943b0b87d"
+  },
+  "status": "completed",
+  "updated_at": "2026-11-13T18:24:48.137409+00:00",
+  "validation_sha256": "5bc526049e9e0337952046eb2e04d54f896b137bbf5b89ea08da5dfd417e41a0"
+}

@@ -1,0 +1,22 @@
+{
+  "python": "3.12.10",
+  "platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39",
+  "packages": {
+    "rdkit": "2025.3.6",
+    "meeko": "0.7.1",
+    "biopython": "1.85",
+    "gemmi": "0.7.3",
+    "numpy": "2.2.6",
+    "pandas": "2.2.3",
+    "scipy": "1.15.3",
+    "pydantic": "2.11.7",
+    "PyYAML": "6.0.2"
+  },
+  "errors": [],
+  "vina": {
+    "path": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/tools/vina",
+    "version": "AutoDock Vina v1.2.7",
+    "sha256": "f31f774f723bba7bbe6e9d1c47577020eea9a8da16424284c043d22593570644"
+  },
+  "ready": true
+}
