@@ -9,6 +9,7 @@ import streamlit as st
 from docking_pipeline.config import ExperimentConfig, ProteinConfig, GridConfig, DockingConfig, safe_id
 from docking_pipeline.utils.logging import write_json
 from docking_pipeline.ui_jobs import JobManager
+from docking_pipeline.experiment_status import read_experiment, list_experiments
 
 PROJECT=Path(__file__).resolve().parents[2]
 RESULTS=Path(os.environ.get('DOCKPIPE_RESULTS',str(PROJECT/'results'))).resolve()
@@ -131,27 +132,87 @@ def show_report(root: Path):
         st.caption(f'All inputs, manifests, logs and molecular files are stored in {root}')
 
 
+STATUS_LABELS = {'running':'Recorded as running', 'interrupted':'Interrupted', 'failed':'Failed',
+    'completed':'Completed', 'completed_with_failures':'Completed with failures',
+    'not_started':'Not started', 'unknown':'State unavailable', 'unreadable':'Metadata needs attention'}
+ATTENTION = {'interrupted', 'failed', 'completed_with_failures', 'unreadable', 'unknown'}
+
+
+@st.fragment(run_every=3)
+def experiment_activity(root: Path):
+    row=read_experiment(root)
+    job=manager().snapshot()
+    busy=bool(job and job['returncode'] is None)
+    owned=busy and job['label']==root.name
+    with st.container(border=True):
+        st.caption('EXPERIMENT ACTIVITY · refreshes every 3 seconds')
+        st.subheader('Running' if owned else STATUS_LABELS[row['status']])
+        stage={'preparing_receptor':'Preparing receptor', 'docking':'Preparing ligands and docking',
+               'reporting':'Writing reports', 'finished':'Processing finished'}.get(row['stage'])
+        if stage: st.write(stage)
+        if row['updated_at']: st.caption(f"Last saved update · {row['updated_at']}")
+        if row['status']=='running' and not owned:
+            st.warning('This is the last saved running state. The calculation may still be active in another process. If it has stopped, resume below; the backend prevents simultaneous runs of the same experiment.')
+        if row['error']: st.warning(row['error'])
+        if row['warning']: st.error(row['warning'])
+        progress=row['progress']
+        if progress:
+            a,b,c=st.columns(3)
+            a.metric('Compounds processed',f"{progress['completed']} / {progress['total']}")
+            b.metric('Docked',progress['succeeded']); c.metric('Failed',progress['failed'])
+            st.progress(progress['completed']/progress['total'] if progress['total'] else 0.0,
+                        text='Completed compounds · not an estimate of docking time')
+        else:
+            st.caption('Progress counts are unavailable for this saved run. Existing reports and logs remain accessible.')
+        if row['has_report'] and st.button('Open latest report',key=f'open-report-{root.name}'):
+            st.rerun()
+        if (root/'config.resolved.json').is_file():
+            with st.expander('Resume or retry this experiment',expanded=row['status'] in ATTENTION):
+                st.caption('Successful ligands are retained. Incomplete work starts a fresh attempt; previous evidence is preserved.')
+                retry=st.checkbox('Retry failed ligands in new attempt folders',key=f'retry-{root.name}')
+                if st.button('Resume saved experiment',key=f'resume-{root.name}',disabled=busy or not row['can_resume']):
+                    try:
+                        args=['run','--config',str(root/'config.resolved.json'),'--resume']
+                        if retry: args.append('--retry-failed')
+                        manager().launch(args,RESULTS/'_logs'/f'{uuid.uuid4().hex}.log',root.name); st.rerun()
+                    except Exception as exc: st.error(str(exc))
+                if busy: st.caption('Wait for the current UI calculation to finish before launching another.')
+
+
 def experiments():
-    heading('RESEARCH WORKSPACE','Molecular docking','Inspect your experiments, compare computed scores, and examine the molecular poses behind each result.')
+    heading('RESEARCH WORKSPACE','Molecular docking','Follow every experiment from preparation to measured results. Inspect failures, resume interrupted work, and explore computed poses.')
     monitor()
-    reports=sorted(RESULTS.glob('*/report.json'),key=lambda p:p.stat().st_mtime,reverse=True)
-    if not reports:
-        st.info('No experiments have finished yet. Create a new experiment or run the 1IEP benchmark.')
+    rows=list_experiments(RESULTS)
+    if not rows:
+        st.info('No experiments have been saved yet. Create a new experiment or run the 1IEP benchmark.')
         st.write('Every score and pose shown here comes from an actual AutoDock Vina calculation.')
+        return
+    a,b,c=st.columns(3)
+    a.metric('Saved experiments',len(rows))
+    b.metric('Reports available',sum(r['has_report'] for r in rows))
+    c.metric('Need attention',sum(r['status'] in ATTENTION for r in rows))
+    search,filters=st.columns([2,1])
+    query=search.text_input('Search experiments',placeholder='Experiment identifier').strip().casefold()
+    selected_filter=filters.selectbox('Status filter',['All experiments','Needs attention','Completed','Running or interrupted'])
+    filtered=[r for r in rows if query in r['id'].casefold()
+        and (selected_filter=='All experiments'
+             or selected_filter=='Needs attention' and r['status'] in ATTENTION
+             or selected_filter=='Completed' and r['status']=='completed'
+             or selected_filter=='Running or interrupted' and r['status'] in ('running','interrupted'))]
+    if not filtered:
+        st.info('No experiments match these filters. Clear the search or choose All experiments.')
+        return
+    selected=st.selectbox('Experiment',[r['id'] for r in filtered])
+    root=RESULTS/selected
+    experiment_activity(root)
+    if (root/'report.json').is_file():
+        st.divider()
+        st.caption('LAST SAVED REPORT · current activity and progress appear above')
+        try: show_report(root)
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+            st.error(f'The saved report could not be displayed: {exc}. Inspect the experiment files or select another experiment.')
     else:
-        selected=st.selectbox('Experiment',[p.parent.name for p in reports])
-        show_report(RESULTS/selected)
-    with st.expander('Resume an interrupted experiment'):
-        configs=sorted(RESULTS.glob('*/config.resolved.json'))
-        if configs:
-            choice=st.selectbox('Saved experiment',[p.parent.name for p in configs])
-            retry=st.checkbox('Retry failed ligands in new attempt folders')
-            if st.button('Resume saved experiment'):
-                try:
-                    args=['run','--config',str(RESULTS/choice/'config.resolved.json'),'--resume']
-                    if retry: args.append('--retry-failed')
-                    manager().launch(args,RESULTS/'_logs'/f'{uuid.uuid4().hex}.log',choice); st.rerun()
-                except Exception as exc: st.error(str(exc))
+        st.info('Use Open latest report above when processing finishes. Live progress and recovery controls remain available.')
 
 
 def new_experiment():

@@ -30,6 +30,7 @@ def main(argv=None) -> int:
     benchmark.add_argument('--exhaustiveness',type=int,default=32); benchmark.add_argument('--cpu',type=int,default=2)
     benchmark.add_argument('--seed',type=int,default=20261113); benchmark.add_argument('--resume',action='store_true')
     report=sub.add_parser('report'); report.add_argument('--job',type=Path,required=True)
+    status=sub.add_parser('status'); status.add_argument('--job',type=Path,required=True)
     ui=sub.add_parser('ui'); ui.add_argument('--port',type=int,default=8501)
     args=parser.parse_args(argv)
     try:
@@ -67,6 +68,12 @@ def main(argv=None) -> int:
             from docking_pipeline.reporting.report_generator import generate_report
             root=args.job if args.job.is_dir() else Path('results')/args.job
             result=json.loads((root/'report.json').read_text()); generate_report(result,root); print(root/'report.md'); return 0
+        if args.command=='status':
+            from docking_pipeline.experiment_status import read_experiment
+            root=args.job if args.job.is_dir() else Path('results')/args.job
+            if not root.is_dir(): raise FileNotFoundError(f'Experiment not found: {args.job}')
+            result=read_experiment(root); print(json.dumps(result,indent=2))
+            return 1 if result['status']=='unreadable' else 0
         if args.command=='ui':
             import subprocess
             return subprocess.call([sys.executable,'-m','streamlit','run',str(Path(__file__).with_name('ui.py')),

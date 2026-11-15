@@ -44,7 +44,8 @@ def run_experiment(config: ExperimentConfig, resume: bool = False, progress=None
             write_json(state_path,state)
             write_json(root/'config.resolved.json',configuration)
             write_json(root/'environment.json',environment)
-        state.update(status='running', updated_at=now())
+        state.update(status='running', stage='preparing_receptor', updated_at=now(),
+                     progress={'total': len(records), 'completed': 0, 'succeeded': 0, 'failed': 0})
         state.pop('error', None)
         write_json(state_path, state)
         state_guard = Lock()
@@ -61,6 +62,8 @@ def run_experiment(config: ExperimentConfig, resume: bool = False, progress=None
                 write_json(state_path,state)
             grid=make_grid(config.grid,receptor['reference_coordinates'])
             write_json(root/'grid.json',grid)
+            state.update(stage='docking', updated_at=now())
+            write_json(state_path, state)
             def record_retry_started(compound, hashes):
                 with state_guard:
                     state.setdefault('retry_checkpoints', {})[compound] = {'artifact_hashes': hashes}
@@ -70,6 +73,9 @@ def run_experiment(config: ExperimentConfig, resume: bool = False, progress=None
                 with state_guard:
                     state.setdefault('ligand_status_hashes',{})[compound]=sha256(root/'ligands'/compound/'status.json')
                     state.get('retry_checkpoints', {}).pop(compound, None)
+                    state['progress']['completed'] = done
+                    state['progress']['succeeded' if status == 'success' else 'failed'] += 1
+                    state['updated_at'] = now()
                     write_json(state_path,state)
                 if progress: progress(done,total,compound,status)
             results=run_batch(records,Path(receptor['pdbqt']),grid,config,root/'ligands',record_progress,retry_failed,record_retry_started)
@@ -83,8 +89,9 @@ def run_experiment(config: ExperimentConfig, resume: bool = False, progress=None
                 if sha256(validation)!=state.get('validation_sha256'):
                     raise ValueError('Crystallographic validation integrity failure')
                 report['validation']=json.loads(validation.read_text())
+            state.update(stage='reporting', updated_at=now()); write_json(state_path, state)
             generate_report(report,root)
-            state.update(status=status,updated_at=now()); write_json(state_path,state)
+            state.update(status=status,stage='finished',updated_at=now()); write_json(state_path,state)
             return report
         except KeyboardInterrupt:
             state.update(status='interrupted', error='Execution interrupted; resume to continue in a new attempt', updated_at=now())

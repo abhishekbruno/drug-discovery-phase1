@@ -1,0 +1,2 @@
+rank,compound_id,best_score_kcal_mol,scoring_function,molecular_weight,logp,hbond_donors,hbond_acceptors,rotatable_bonds,tpsa
+1,ethanol,-2.585,vina,46.069,-0.0014000000000000123,1,1,0,20.23

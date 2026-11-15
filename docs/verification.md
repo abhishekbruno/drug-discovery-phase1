@@ -58,6 +58,18 @@ A focused independent review found an additional boundary: interruption after wr
 
 Final verification after that fix: **42 tests passed in 121.57 seconds**, including seven recovery cases. Output is preserved in `evidence/cross-platform/backend-local-tests.txt`. Source compilation and `git diff --check` passed. The reviewer confirmed the corrected temporary-file handling and reported no remaining review blocker.
 
+## Backend/UI workspace milestone — 15 November 2026
+
+The preceding recovery commit `2c58712` passed both [push checks](https://github.com/abhishekbruno/drug-discovery-phase1/actions/runs/43630454744) and [pull-request checks](https://github.com/abhishekbruno/drug-discovery-phase1/actions/runs/43630458922), including the configured real scientific jobs.
+
+Current work adds atomic saved stage/progress counts, a read-only `dockpipe status` command, and an experiment workspace with search, status filters, incomplete-job visibility, timed activity refresh and direct recovery controls. Inspected GitHub references and version-specific decisions are in `docs/repository-references.md`. No scientific protocol or dependency version changes.
+
+Browser verification launched `workspace-ui-validation-20261115` through the UI: ethanol genuinely docked at −2.585 kcal/mol; the intentionally invalid SMILES failed separately. Both UI and CLI showed 2/2 processed, one success and one failure. Retrying through the UI created `invalid/attempt-002` while the successful ethanol pose's SHA-256 and modification time remained unchanged. The completed-only filter selected the historical 1IEP benchmark. At 390 px viewport width, document width was also 390 px; controls stacked without page overflow. The temporary viewport override was reset afterward.
+
+Tests first reproduced missing progress metadata, incomplete-job visibility, malformed JSON report failure and missing CLI status behavior. Independent review found a nested malformed-report case (`validation: null`), reproduced before extending the report error boundary. Scientific results are never synthesized in these tests; small metadata fixtures exercise UI/error handling only.
+
+Final suite: **49 passed in 114.82 seconds** (`evidence/workspace/tests.txt`). `pip check`, source compilation and `git diff --check` passed. The UI validation status/report, ranking and screenshot are retained with the milestone. The deliberate invalid ligand explains the visible "Completed with failures" demonstration; the successful result was preserved during retry.
+
 ## Decisions and remaining limits
 
 Native Windows and Ubuntu Linux have been verified. WSL itself remains untested because it is not installed locally. Cross-platform bitwise repeatability is not asserted. The frontend is a local Streamlit UI sharing the engine; it is not an authenticated public service. Receptor repair, pKa/pH prediction, protomer/tautomer ensembles, flexible receptors and broad prospective screening validation remain outside this Phase 1 protocol. Unsupported preparation fails with logs. A passing 1IEP redocking does not establish biological efficacy or experimental affinity.
