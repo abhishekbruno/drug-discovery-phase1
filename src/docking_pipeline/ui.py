@@ -245,18 +245,19 @@ def new_experiment():
         st.subheader('1. Choose your protein and molecules')
         st.session_state.setdefault('new_job_id','docking-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
         identifier=st.text_input('Experiment identifier',key='new_job_id',help='A unique name for finding this run later. Use letters, numbers, hyphens or underscores.')
-        chains=st.text_input('Receptor chains (comma separated)',value='A',help='Which protein chains to include. A chain is a labeled part of the protein structure. Keep A for the bundled example.')
         smiles=st.text_area('SMILES library',value='CCO ethanol\nCC(=O)Nc1ccccc1 acetanilide',help='SMILES is a text representation of a molecule. Enter one SMILES followed by a unique molecule name per line. An uploaded library replaces this text.')
         st.caption('For example, CCO ethanol means: test the molecule written as CCO and label it ethanol.')
-        reference=st.text_input('Reference residue (chain:number:name)',value='A:201:STI' if bundled else '',help='Identifies a molecule already in the structure to locate the search area. It is removed from the protein before docking and saved separately. Keep A:201:STI for the bundled example.')
-        removals=st.text_input('Explicitly remove other residues (comma separated)',value='A:1:CL,A:2:CL,A:4:CL,A:5:CL' if bundled else '')
-        st.caption('Review cofactors and ions before removing them. The bundled benchmark lists four chloride ions explicitly.')
-        if bundled:
-            with st.expander('Inspect bundled protein components'):
-                from docking_pipeline.protein.loader import load_structure
-                from docking_pipeline.protein.validator import inspect_structure
-                inventory=inspect_structure(load_structure(DATA/'1iep.pdb'))
-                st.dataframe(pd.DataFrame([h for h in inventory['heterogens'] if not h['water']]),hide_index=True,width='stretch')
+        with st.expander('Protein setup (advanced)',expanded=not bundled):
+            chains=st.text_input('Receptor chains (comma separated)',value='A',help='Which protein chains to include. A chain is a labeled part of the protein structure. Keep A for the bundled example.')
+            reference=st.text_input('Reference residue (chain:number:name)',value='A:201:STI' if bundled else '',help='Identifies a molecule already in the structure to locate the search area. It is removed from the protein before docking and saved separately. Keep A:201:STI for the bundled example.')
+            removals=st.text_input('Explicitly remove other residues (comma separated)',value='A:1:CL,A:2:CL,A:4:CL,A:5:CL' if bundled else '')
+            st.caption('Review cofactors and ions before removing them. The bundled benchmark lists four chloride ions explicitly.')
+            if bundled:
+                with st.expander('Inspect bundled protein components'):
+                    from docking_pipeline.protein.loader import load_structure
+                    from docking_pipeline.protein.validator import inspect_structure
+                    inventory=inspect_structure(load_structure(DATA/'1iep.pdb'))
+                    st.dataframe(pd.DataFrame([h for h in inventory['heterogens'] if not h['water']]),hide_index=True,width='stretch')
         with st.expander('Preparation policies'):
             water=st.selectbox('Water handling',['remove','retain'])
             heterogen=st.selectbox('Unlisted cofactors and ions',['error','retain'],help='Error requires an explicit decision before preparation.')
@@ -279,13 +280,23 @@ def new_experiment():
         st.subheader('3. Set the search effort')
         exhaustiveness=st.select_slider('Exhaustiveness',options=[1,4,8,16,32,64,128],value=8,help='How thoroughly the computer searches. Higher values usually take longer; they do not guarantee a better prediction.')
         st.caption('The defaults are a useful starting point. A pose is one predicted 3D arrangement of a molecule.')
-        modes=st.number_input('Maximum poses',1,50,9)
-        budget=min(8,os.cpu_count() or 1)
-        cpu=st.number_input('CPU threads per ligand',1,budget,min(2,budget))
-        workers=st.number_input('Parallel ligands',1,4,1)
-        seed=st.number_input('Random seed',1,2147483647,20261113)
-        st.caption(f'CPU execution · maximum combined budget {budget} threads · sequential default')
+        with st.expander('Performance and saved poses (advanced)'):
+            modes=st.number_input('Maximum poses',1,50,9)
+            budget=min(8,os.cpu_count() or 1)
+            cpu=st.number_input('CPU threads per ligand',1,budget,min(2,budget))
+            workers=st.number_input('Parallel ligands',1,4,1)
+            seed=st.number_input('Random seed',1,2147483647,20261113)
+            st.caption(f'CPU execution · maximum combined budget {budget} threads · sequential default')
     st.divider()
+    with st.container(border=True):
+        st.subheader('Review your run')
+        st.write('**Protein:** '+('Included 1IEP example' if bundled else protein_file.name if protein_file else 'No protein uploaded yet'))
+        st.write('**Molecules:** '+(f'Uploaded file: {ligand_file.name} (replaces the text library)' if ligand_file else 'From the SMILES text above; molecules are checked when the run starts.'))
+        st.write('**Search area:** '+(f'Around reference {reference or "(not specified)"}, with {padding:g} Å padding' if grid_method=='Reference ligand' else f'Manual box · center {center} · size {size} Å'))
+        st.caption(f'Search effort {exhaustiveness} · up to {modes} poses per molecule · {workers} molecule(s) at a time')
+        if cpu*workers>budget:
+            st.warning(f'The selected performance settings need {cpu*workers} CPU threads, but the limit is {budget}. Reduce CPU threads or parallel ligands under Performance and saved poses.')
+        st.caption('After starting, choose Experiments in the sidebar to follow progress. Results are saved on this computer.')
     st.caption('Docking scores are predictions. They do not establish biological efficacy, safety, or measured affinity.')
     if st.button('Start docking',type='primary',width='stretch'):
         try:

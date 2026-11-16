@@ -9,3 +9,9 @@ Scientific calculations, defaults and saved output schemas are unchanged. Lower 
 Verification: all six existing UI tests passed; Python compilation and git diff whitespace checks passed. Browser inspection confirmed the guide, result table and setup screen. A 390-pixel viewport reported a document width of 390 pixels. Preview: `images/plain-language-workspace.jpg`.
 
 The previous commit's GitHub scientific checks passed in runs 43732647347 and 43732643124. The GitHub connector returned 404 for the private PR, so repository checks and push used the existing authenticated Git connection.
+
+## Guided setup follow-up
+
+Protein setup is collapsed for the bundled example and expanded for custom inputs. CPU, parallel execution, seed and saved-pose settings are grouped in an advanced section. A review panel shows the actual protein source, molecule source, search region and effort before submission. Selecting too many CPU threads displays an actionable warning; the existing backend resource validation remains authoritative.
+
+Verification: seven UI tests pass, including changes to manual coordinates and an over-budget CPU selection. Browser inspection confirmed the bundled setup, collapsed advanced sections and review panel. Screenshot: `images/guided-setup.jpg`. The preceding UI commit a53247a passed GitHub runs 43818334546 and 43818328529.
