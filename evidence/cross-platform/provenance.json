@@ -1,0 +1,60 @@
+{
+  "run_url": "https://github.com/abhishekbruno/drug-discovery-phase1/actions/runs/43481093559",
+  "artifacts": [
+    {
+      "name": "linux-1iep-redocking",
+      "id": 14066760146,
+      "digest": "sha256:c39f20da48275c27cbfeccf8c0c887ebcae51562ebe575ad43dbf6073d9a8f8f",
+      "workflow_run": {
+        "id": 43481093559,
+        "repository_id": 1456934012,
+        "head_repository_id": 1456934012,
+        "head_branch": "ci/cross-platform-verification",
+        "head_sha": "77b11bb65aa1832beb09872e0fdbfebb3cafa98c"
+      },
+      "top_scoring_pose": {
+        "pose_number": 1,
+        "heavy_atom_rmsd_angstrom": 0.9683428726019104,
+        "score_kcal_mol": -12.749
+      },
+      "locally_recomputed_rmsds_match": true,
+      "pose_sha256": "acd9b2762f46cc5ee5677b323faa2945bea8de347ea9f03cf0f5f1c67523caa8"
+    },
+    {
+      "name": "tests-ubuntu-24.04",
+      "id": 14066130005,
+      "digest": "sha256:fba5855762aa6086d4810860e8774dcb2faa7f5122fc84fbecffbe19b9f84357",
+      "workflow_run": {
+        "id": 43481093559,
+        "repository_id": 1456934012,
+        "head_repository_id": 1456934012,
+        "head_branch": "ci/cross-platform-verification",
+        "head_sha": "77b11bb65aa1832beb09872e0fdbfebb3cafa98c"
+      },
+      "tests": {
+        "tests": 34,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "tests-windows-latest",
+      "id": 14064548989,
+      "digest": "sha256:7021674819261ca35dafe7b0fa150c9905eb273f4ea18d015511597921a1b76e",
+      "workflow_run": {
+        "id": 43481093559,
+        "repository_id": 1456934012,
+        "head_repository_id": 1456934012,
+        "head_branch": "ci/cross-platform-verification",
+        "head_sha": "77b11bb65aa1832beb09872e0fdbfebb3cafa98c"
+      },
+      "tests": {
+        "tests": 34,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  ]
+}

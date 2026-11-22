@@ -9,6 +9,7 @@ import streamlit as st
 from docking_pipeline.config import ExperimentConfig, ProteinConfig, GridConfig, DockingConfig, safe_id
 from docking_pipeline.utils.logging import write_json
 from docking_pipeline.ui_jobs import JobManager
+from docking_pipeline.experiment_status import read_experiment, list_experiments
 
 PROJECT=Path(__file__).resolve().parents[2]
 RESULTS=Path(os.environ.get('DOCKPIPE_RESULTS',str(PROJECT/'results'))).resolve()
@@ -73,18 +74,25 @@ def show_report(root: Path):
     report=json.loads((root/'report.json').read_text(encoding='utf-8'))
     ranks=report['ranking']; successes=sum(r['status']=='success' for r in report['ligands'])
     a,b,c,d=st.columns(4)
-    a.metric('Compounds',len(report['ligands'])); b.metric('Docked',successes)
+    a.metric('Molecules tested',len(report['ligands'])); b.metric('Results available',successes)
     c.metric('Best Vina score',f"{ranks[0]['best_score_kcal_mol']:.2f}" if ranks else '—',help='Computed docking score in kcal/mol')
     validation=report.get('validation',{})
-    d.metric('Reference RMSD',f"{validation['top_scoring_pose']['heavy_atom_rmsd_angstrom']:.2f} Å" if validation.get('top_scoring_pose') else 'Not measured')
+    d.metric('Reference RMSD',f"{validation['top_scoring_pose']['heavy_atom_rmsd_angstrom']:.2f} Å" if validation.get('top_scoring_pose') else 'Not measured',help='Distance from an experimentally observed molecular position. Lower is closer. Å means ångström, a unit of atomic-scale distance. This is measured only when a reference comparison is available.')
     st.caption(f"{report['experiment_id']} · {report['status']} · Vina · kcal/mol · started {report['started_at']}")
     if validation:
         (st.success if validation['status']=='passed' else st.warning)(f"Redocking validation: {validation['status']} · top-scoring pose criterion ≤ {validation['threshold_angstrom']:.1f} Å")
-    rank_tab,pose_tab,method_tab,files_tab=st.tabs(['Rankings','Molecular poses','Method & validation','Reports & files'])
+    st.info('How to read this result: the computer predicts how each small molecule may fit into the protein. A lower (more negative) score ranks better in this run. It does not prove that a molecule works as a medicine.')
+    rank_tab,pose_tab,method_tab,files_tab=st.tabs(['Compare molecules','View 3D fit','Technical details','Download results'])
     with rank_tab:
-        st.subheader('Computed candidate ranking')
+        st.subheader('Which molecules scored best?')
         st.caption('More negative Vina scores are generally more favorable within this experiment. They are not measured binding affinities.')
-        if ranks: st.dataframe(pd.DataFrame(ranks),hide_index=True,width='stretch')
+        if ranks:
+            table=pd.DataFrame(ranks)
+            st.dataframe(table[['rank','compound_id','best_score_kcal_mol']].rename(columns={
+                'rank':'Rank','compound_id':'Molecule','best_score_kcal_mol':'Predicted score (kcal/mol)'}),hide_index=True,width='stretch')
+            with st.expander('More molecular properties (advanced)'):
+                st.caption('These describe molecular size and chemistry; they are not measures of treatment effectiveness.')
+                st.dataframe(table,hide_index=True,width='stretch')
         else: st.warning('No successful docking calculations to rank.')
         failed=[{'compound':r['compound_id'],'error':r.get('error','')} for r in report['ligands'] if r['status']=='failed']
         if failed:
@@ -102,7 +110,8 @@ def show_report(root: Path):
                 overlay=st.checkbox('Show crystal reference',value=True)
                 backbone=st.checkbox('Show receptor backbone',value=True)
                 st.caption('Green: carbon · blue: nitrogen · red: oxygen · gold: crystal reference. Coordinates stay in the receptor frame.')
-                st.json(row['docking']['poses'][index])
+                with st.expander('Pose measurements (advanced)'):
+                    st.json(row['docking']['poses'][index])
             with right:
                 from docking_pipeline.ui_viewer import pose_figure
                 reference=report['receptor'].get('reference_pdb')
@@ -119,10 +128,13 @@ def show_report(root: Path):
         else: st.info('No crystallographic validation was performed for this experiment.')
         for text in report['limitations']: st.write('• '+text)
     with files_tab:
-        st.subheader('Download research outputs')
+        st.subheader('Save your results')
+        st.caption('Start with the readable report or ranking spreadsheet. JSON, SDF and PDBQT files are for further analysis in scientific software.')
+        download_labels={'report.md':'Readable report (.md)','report.json':'Full data (.json)',
+                         'ranking.csv':'Molecule rankings (.csv)','poses.csv':'3D fit measurements (.csv)','status.csv':'Processing status (.csv)'}
         for name,mime in [('report.md','text/markdown'),('report.json','application/json'),('ranking.csv','text/csv'),('poses.csv','text/csv'),('status.csv','text/csv')]:
             path=root/name
-            if path.exists(): st.download_button(name,path.read_bytes(),file_name=f'{root.name}-{name}',mime=mime,key=f'dl-{root.name}-{name}')
+            if path.exists(): st.download_button(download_labels[name],path.read_bytes(),file_name=f'{root.name}-{name}',mime=mime,key=f'dl-{root.name}-{name}')
         for row in report['ligands']:
             if row['status']=='success':
                 for kind in ['sdf','pdbqt']:
@@ -131,31 +143,95 @@ def show_report(root: Path):
         st.caption(f'All inputs, manifests, logs and molecular files are stored in {root}')
 
 
+STATUS_LABELS = {'running':'Recorded as running', 'interrupted':'Interrupted', 'failed':'Failed',
+    'completed':'Completed', 'completed_with_failures':'Finished — some molecules need attention',
+    'not_started':'Not started', 'unknown':'State unavailable', 'unreadable':'Metadata needs attention'}
+ATTENTION = {'interrupted', 'failed', 'completed_with_failures', 'unreadable', 'unknown'}
+
+
+@st.fragment(run_every=3)
+def experiment_activity(root: Path):
+    row=read_experiment(root)
+    job=manager().snapshot()
+    busy=bool(job and job['returncode'] is None)
+    owned=busy and job['label']==root.name
+    with st.container(border=True):
+        st.caption('EXPERIMENT ACTIVITY · refreshes every 3 seconds')
+        st.subheader('Running' if owned else STATUS_LABELS[row['status']])
+        stage={'preparing_receptor':'Step 1 of 3 · Preparing the protein structure',
+               'docking':'Step 2 of 3 · Preparing molecules and predicting their fit',
+               'reporting':'Step 3 of 3 · Saving results', 'finished':'Processing finished · Review available results below'}.get(row['stage'])
+        if stage: st.write(stage)
+        if row['updated_at']: st.caption(f"Last saved update · {row['updated_at']}")
+        if row['status']=='running' and not owned:
+            st.warning('This is the last saved running state. The calculation may still be active in another process. If it has stopped, resume below; the backend prevents simultaneous runs of the same experiment.')
+        if row['error']: st.warning(row['error'])
+        if row['warning']: st.error(row['warning'])
+        progress=row['progress']
+        if progress:
+            a,b,c=st.columns(3)
+            a.metric('Compounds processed',f"{progress['completed']} / {progress['total']}")
+            b.metric('Results available',progress['succeeded']); c.metric('Need attention',progress['failed'])
+            st.progress(progress['completed']/progress['total'] if progress['total'] else 0.0,
+                        text='Completed compounds · not an estimate of docking time')
+        else:
+            st.caption('Progress counts are unavailable for this saved run. Existing reports and logs remain accessible.')
+        if row['has_report'] and st.button('Open latest report',key=f'open-report-{root.name}'):
+            st.rerun()
+        if (root/'config.resolved.json').is_file():
+            with st.expander('Resume or retry this experiment',expanded=row['status'] in ATTENTION):
+                st.caption('Continue where this run stopped. Completed molecules are kept. Select the checkbox below to also try molecules that previously failed; earlier files are preserved.')
+                retry=st.checkbox('Retry failed ligands in new attempt folders',key=f'retry-{root.name}')
+                if st.button('Resume saved experiment',key=f'resume-{root.name}',disabled=busy or not row['can_resume']):
+                    try:
+                        args=['run','--config',str(root/'config.resolved.json'),'--resume']
+                        if retry: args.append('--retry-failed')
+                        manager().launch(args,RESULTS/'_logs'/f'{uuid.uuid4().hex}.log',root.name); st.rerun()
+                    except Exception as exc: st.error(str(exc))
+                if busy: st.caption('Wait for the current UI calculation to finish before launching another.')
+
+
 def experiments():
-    heading('RESEARCH WORKSPACE','Molecular docking','Inspect your experiments, compare computed scores, and examine the molecular poses behind each result.')
+    heading('YOUR WORKSPACE','Explore how molecules fit','Molecular docking predicts how a small molecule may fit into a protein. Start a calculation, follow its progress, and compare the predicted results here.')
+    rows=list_experiments(RESULTS)
+    with st.expander('New here? Start with these 3 steps',expanded=not rows):
+        st.markdown('**1. Set up a run** — Choose **New experiment** in the sidebar. The included example has a protein and two molecules ready to try.\n\n**2. Follow progress** — Return to **Experiments** to see how many molecules have finished. Calculations can take several minutes.\n\n**3. Explore results** — Compare scores, view the predicted 3D fit, or download a report. A prediction is a starting point for research, not a laboratory result.')
     monitor()
-    reports=sorted(RESULTS.glob('*/report.json'),key=lambda p:p.stat().st_mtime,reverse=True)
-    if not reports:
-        st.info('No experiments have finished yet. Create a new experiment or run the 1IEP benchmark.')
+    if not rows:
+        st.info('No experiments have been saved yet. Create a new experiment or run the 1IEP benchmark.')
         st.write('Every score and pose shown here comes from an actual AutoDock Vina calculation.')
+        return
+    a,b,c=st.columns(3)
+    a.metric('Saved experiments',len(rows))
+    b.metric('Reports available',sum(r['has_report'] for r in rows))
+    c.metric('Need attention',sum(r['status'] in ATTENTION for r in rows))
+    search,filters=st.columns([2,1])
+    query=search.text_input('Search experiments',placeholder='Experiment identifier').strip().casefold()
+    selected_filter=filters.selectbox('Status filter',['All experiments','Needs attention','Completed','Running or interrupted'])
+    filtered=[r for r in rows if query in r['id'].casefold()
+        and (selected_filter=='All experiments'
+             or selected_filter=='Needs attention' and r['status'] in ATTENTION
+             or selected_filter=='Completed' and r['status']=='completed'
+             or selected_filter=='Running or interrupted' and r['status'] in ('running','interrupted'))]
+    if not filtered:
+        st.info('No experiments match these filters. Clear the search or choose All experiments.')
+        return
+    selected=st.selectbox('Experiment',[r['id'] for r in filtered])
+    root=RESULTS/selected
+    experiment_activity(root)
+    if (root/'report.json').is_file():
+        st.divider()
+        st.caption('LAST SAVED REPORT · current activity and progress appear above')
+        try: show_report(root)
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+            st.error(f'The saved report could not be displayed: {exc}. Inspect the experiment files or select another experiment.')
     else:
-        selected=st.selectbox('Experiment',[p.parent.name for p in reports])
-        show_report(RESULTS/selected)
-    with st.expander('Resume an interrupted experiment'):
-        configs=sorted(RESULTS.glob('*/config.resolved.json'))
-        if configs:
-            choice=st.selectbox('Saved experiment',[p.parent.name for p in configs])
-            retry=st.checkbox('Retry failed ligands in new attempt folders')
-            if st.button('Resume saved experiment'):
-                try:
-                    args=['run','--config',str(RESULTS/choice/'config.resolved.json'),'--resume']
-                    if retry: args.append('--retry-failed')
-                    manager().launch(args,RESULTS/'_logs'/f'{uuid.uuid4().hex}.log',choice); st.rerun()
-                except Exception as exc: st.error(str(exc))
+        st.info('Use Open latest report above when processing finishes. Live progress and recovery controls remain available.')
 
 
 def new_experiment():
-    heading('NEW EXPERIMENT','From structure to score','Select the receptor, prepare your ligand library, and define a reproducible docking calculation.')
+    heading('NEW EXPERIMENT','Set up your first prediction','Choose a protein (the target) and small molecules (called ligands). The computer will try different ways each molecule could fit inside the selected part of the protein.')
+    st.info('First time? Keep the bundled example selected and leave the settings below unchanged, then choose Start docking. This example compares ethanol and acetanilide; it is a practice run, not the validation benchmark.')
     monitor()
     bundled=st.checkbox('Use bundled 1IEP example',value=True)
     protein_file=ligand_file=None
@@ -166,20 +242,22 @@ def new_experiment():
         if not protein_file: st.info('Upload a PDB or mmCIF protein structure to start.')
     a,b=st.columns([3,2],gap='large')
     with a:
-        st.subheader('01 / Molecular inputs')
+        st.subheader('1. Choose your protein and molecules')
         st.session_state.setdefault('new_job_id','docking-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
-        identifier=st.text_input('Experiment identifier',key='new_job_id')
-        chains=st.text_input('Receptor chains (comma separated)',value='A')
-        smiles=st.text_area('SMILES library',value='CCO ethanol\nCC(=O)Nc1ccccc1 acetanilide',help='One SMILES and unique compound identifier per line. Uploaded library takes precedence.')
-        reference=st.text_input('Reference residue (chain:number:name)',value='A:201:STI' if bundled else '',help='Removed from receptor and preserved separately; required for reference-guided grids.')
-        removals=st.text_input('Explicitly remove other residues (comma separated)',value='A:1:CL,A:2:CL,A:4:CL,A:5:CL' if bundled else '')
-        st.caption('Review cofactors and ions before removing them. The bundled benchmark lists four chloride ions explicitly.')
-        if bundled:
-            with st.expander('Inspect bundled protein components'):
-                from docking_pipeline.protein.loader import load_structure
-                from docking_pipeline.protein.validator import inspect_structure
-                inventory=inspect_structure(load_structure(DATA/'1iep.pdb'))
-                st.dataframe(pd.DataFrame([h for h in inventory['heterogens'] if not h['water']]),hide_index=True,width='stretch')
+        identifier=st.text_input('Experiment identifier',key='new_job_id',help='A unique name for finding this run later. Use letters, numbers, hyphens or underscores.')
+        smiles=st.text_area('SMILES library',value='CCO ethanol\nCC(=O)Nc1ccccc1 acetanilide',help='SMILES is a text representation of a molecule. Enter one SMILES followed by a unique molecule name per line. An uploaded library replaces this text.')
+        st.caption('For example, CCO ethanol means: test the molecule written as CCO and label it ethanol.')
+        with st.expander('Protein setup (advanced)',expanded=not bundled):
+            chains=st.text_input('Receptor chains (comma separated)',value='A',help='Which protein chains to include. A chain is a labeled part of the protein structure. Keep A for the bundled example.')
+            reference=st.text_input('Reference residue (chain:number:name)',value='A:201:STI' if bundled else '',help='Identifies a molecule already in the structure to locate the search area. It is removed from the protein before docking and saved separately. Keep A:201:STI for the bundled example.')
+            removals=st.text_input('Explicitly remove other residues (comma separated)',value='A:1:CL,A:2:CL,A:4:CL,A:5:CL' if bundled else '')
+            st.caption('Review cofactors and ions before removing them. The bundled benchmark lists four chloride ions explicitly.')
+            if bundled:
+                with st.expander('Inspect bundled protein components'):
+                    from docking_pipeline.protein.loader import load_structure
+                    from docking_pipeline.protein.validator import inspect_structure
+                    inventory=inspect_structure(load_structure(DATA/'1iep.pdb'))
+                    st.dataframe(pd.DataFrame([h for h in inventory['heterogens'] if not h['water']]),hide_index=True,width='stretch')
         with st.expander('Preparation policies'):
             water=st.selectbox('Water handling',['remove','retain'])
             heterogen=st.selectbox('Unlisted cofactors and ions',['error','retain'],help='Error requires an explicit decision before preparation.')
@@ -187,7 +265,8 @@ def new_experiment():
             preserve=st.checkbox('Preserve uploaded SDF coordinates',value=False)
             st.caption('Default: regenerate a 3D conformer with ETKDGv3 and optimize with MMFF94/UFF. Input charges, tautomer and specified stereochemistry are preserved; no pH calculation.')
     with b:
-        st.subheader('02 / Binding region')
+        st.subheader('2. Choose where to look')
+        st.caption('The search box is the area of the protein to explore. Reference ligand uses the location of a molecule already present in the structure.')
         grid_method=st.radio('Grid method',['Reference ligand','Manual coordinates'])
         if grid_method=='Reference ligand':
             padding=st.number_input('Padding around reference (Å)',2.0,15.0,5.0,.5)
@@ -198,15 +277,26 @@ def new_experiment():
             center=[centers[i].number_input(f'Center {axis}',value=value,format='%.3f') for i,(axis,value) in enumerate(zip('XYZ',[15.190,53.903,16.917]))]
             size=[sizes[i].number_input(f'Size {axis}',1.0,50.0,20.0) for i,axis in enumerate('XYZ')]
             grid=None
-        st.subheader('03 / Search settings')
-        exhaustiveness=st.select_slider('Exhaustiveness',options=[1,4,8,16,32,64,128],value=8)
-        modes=st.number_input('Maximum poses',1,50,9)
-        budget=min(8,os.cpu_count() or 1)
-        cpu=st.number_input('CPU threads per ligand',1,budget,min(2,budget))
-        workers=st.number_input('Parallel ligands',1,4,1)
-        seed=st.number_input('Random seed',1,2147483647,20261113)
-        st.caption(f'CPU execution · maximum combined budget {budget} threads · sequential default')
+        st.subheader('3. Set the search effort')
+        exhaustiveness=st.select_slider('Exhaustiveness',options=[1,4,8,16,32,64,128],value=8,help='How thoroughly the computer searches. Higher values usually take longer; they do not guarantee a better prediction.')
+        st.caption('The defaults are a useful starting point. A pose is one predicted 3D arrangement of a molecule.')
+        with st.expander('Performance and saved poses (advanced)'):
+            modes=st.number_input('Maximum poses',1,50,9)
+            budget=min(8,os.cpu_count() or 1)
+            cpu=st.number_input('CPU threads per ligand',1,budget,min(2,budget))
+            workers=st.number_input('Parallel ligands',1,4,1)
+            seed=st.number_input('Random seed',1,2147483647,20261113)
+            st.caption(f'CPU execution · maximum combined budget {budget} threads · sequential default')
     st.divider()
+    with st.container(border=True):
+        st.subheader('Review your run')
+        st.write('**Protein:** '+('Included 1IEP example' if bundled else protein_file.name if protein_file else 'No protein uploaded yet'))
+        st.write('**Molecules:** '+(f'Uploaded file: {ligand_file.name} (replaces the text library)' if ligand_file else 'From the SMILES text above; molecules are checked when the run starts.'))
+        st.write('**Search area:** '+(f'Around reference {reference or "(not specified)"}, with {padding:g} Å padding' if grid_method=='Reference ligand' else f'Manual box · center {center} · size {size} Å'))
+        st.caption(f'Search effort {exhaustiveness} · up to {modes} poses per molecule · {workers} molecule(s) at a time')
+        if cpu*workers>budget:
+            st.warning(f'The selected performance settings need {cpu*workers} CPU threads, but the limit is {budget}. Reduce CPU threads or parallel ligands under Performance and saved poses.')
+        st.caption('After starting, choose Experiments in the sidebar to follow progress. Results are saved on this computer.')
     st.caption('Docking scores are predictions. They do not establish biological efficacy, safety, or measured affinity.')
     if st.button('Start docking',type='primary',width='stretch'):
         try:
@@ -233,7 +323,8 @@ def new_experiment():
 
 
 def benchmark():
-    heading('SCIENTIFIC VALIDATION','Redock a known structure','Test the complete workflow against the experimental imatinib pose in c-Abl kinase, PDB 1IEP.')
+    heading('CHECK THE WORKFLOW','Compare a prediction with a known structure','This example checks whether the pipeline can reproduce the experimentally observed position of imatinib in the c-Abl protein (PDB 1IEP).')
+    st.write('The check measures the distance between predicted and observed atom positions, called RMSD. Smaller is closer. Passing this check supports this example only; it does not validate every future prediction.')
     monitor()
     st.write('The benchmark prepares chain A, preserves the experimental STI ligand, generates a new ligand conformer, and runs real Vina docking in the official tutorial box.')
     st.info('Success is measured: top-scoring pose heavy-atom RMSD ≤ 2 Å, with symmetry-aware atom mapping and no alignment. A failed benchmark remains a reported result.')
@@ -252,6 +343,7 @@ def benchmark():
 with st.sidebar:
     st.markdown('## ◌ Dockpipe')
     st.caption('MOLECULAR RESEARCH / PHASE 1')
+    st.caption('Experiments: view progress and results\n\nNew experiment: start a prediction\n\nBenchmark: check a known example\n\nEnvironment: check installed tools')
     page=st.radio('Workspace',['Experiments','New experiment','Benchmark','Environment'],label_visibility='collapsed')
     st.divider(); st.caption('Local workspace'); st.code(str(PROJECT),language=None)
     st.caption('CPU AutoDock Vina 1.2.7\n\nRDKit · Meeko · reproducible outputs')

@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import json
+import re
 import traceback
 from docking_pipeline.config import ExperimentConfig
 from docking_pipeline.ligand.loader import LigandRecord
@@ -10,7 +11,10 @@ from docking_pipeline.utils.logging import write_json, now, sha256
 
 
 def artifact_hashes(directory: Path) -> dict:
-    return {str(p.relative_to(directory)): sha256(p) for p in sorted(directory.rglob('*')) if p.is_file() and p.name not in ('status.json',)}
+    # These two compound-root files are mutable current-state bookkeeping.
+    # Status-named files inside attempt directories remain part of the evidence.
+    mutable_status = {directory/'status.json', directory/'status.json.tmp'}
+    return {str(p.relative_to(directory)): sha256(p) for p in sorted(directory.rglob('*')) if p.is_file() and p not in mutable_status}
 
 
 def verify_artifacts(directory: Path, hashes: dict) -> None:
@@ -22,8 +26,26 @@ def verify_artifacts(directory: Path, hashes: dict) -> None:
         if not path.is_file() or sha256(path) != expected: raise ValueError(f'Artifact integrity failure: {path}')
 
 
+def verify_attempt_history(directory: Path, hashes: dict) -> None:
+    """Verify sealed older attempts while permitting new interrupted attempts."""
+    if not hashes:
+        raise ValueError('Retry history integrity failure: empty inventory')
+    attempts = {}
+    for name, expected in hashes.items():
+        path = Path(name)
+        if path.is_absolute() or '..' in path.parts or len(path.parts) < 2 or not re.fullmatch(r'attempt-\d+', path.parts[0]):
+            raise ValueError('Retry history integrity failure: unsafe artifact path')
+        attempts.setdefault(path.parts[0], {})[str(Path(*path.parts[1:]))] = expected
+    for attempt, expected in attempts.items():
+        # All files inside a sealed attempt, including newly added files, matter.
+        actual = {str(p.relative_to(directory/attempt)): sha256(p)
+                  for p in sorted((directory/attempt).rglob('*')) if p.is_file()}
+        if actual != expected:
+            raise ValueError(f'Retry history artifact integrity failure: {directory/attempt}')
+
+
 def run_batch(records: list[LigandRecord], receptor: Path, grid: dict, config: ExperimentConfig,
-              root: Path, progress=None, retry_failed: bool = False) -> list[dict]:
+              root: Path, progress=None, retry_failed: bool = False, retry_started=None) -> list[dict]:
     def execute(record):
         directory = root/record.compound_id
         directory.mkdir(parents=True, exist_ok=True)
@@ -51,6 +73,9 @@ def run_batch(records: list[LigandRecord], receptor: Path, grid: dict, config: E
             else:
                 raise ValueError('Failed legacy result lacks a completion manifest; inspect it and use a new experiment')
             if previous['status']=='success' or not retry_failed: return previous
+            # Persist the old immutable evidence before replacing its current status.
+            if retry_started:
+                retry_started(record.compound_id, previous['artifact_hashes'])
         numbers = [int(p.name.split('-')[1]) for p in directory.glob('attempt-*') if p.is_dir()]
         attempt = directory/f'attempt-{max(numbers,default=0)+1:03d}'; attempt.mkdir()
         result = {'compound_id':record.compound_id, 'docking_run_id':f'{config.experiment_id}/{record.compound_id}/{attempt.name}',

@@ -1,0 +1,49 @@
+{
+  "experiment_id": "ci-1iep",
+  "protein": {
+    "input": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/data/benchmarks/1iep/1iep.pdb",
+    "chains": [
+      "A"
+    ],
+    "reference_residue": "A:201:STI",
+    "water_policy": "remove",
+    "heterogen_policy": "error",
+    "remove_residues": [
+      "A:1:CL",
+      "A:2:CL",
+      "A:4:CL",
+      "A:5:CL"
+    ],
+    "altloc": null,
+    "residue_templates": {}
+  },
+  "ligands": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/data/benchmarks/1iep/reference.sdf",
+  "output_dir": "/home/runner/work/drug-discovery-phase1/drug-discovery-phase1/results",
+  "grid": {
+    "mode": "manual",
+    "center": [
+      15.19,
+      53.903,
+      16.917
+    ],
+    "size": [
+      20.0,
+      20.0,
+      20.0
+    ],
+    "padding": 5.0
+  },
+  "docking": {
+    "executable": "vina",
+    "scoring": "vina",
+    "seed": 20261113,
+    "cpu": 2,
+    "workers": 1,
+    "exhaustiveness": 32,
+    "num_modes": 9,
+    "energy_range": 4.0,
+    "timeout_seconds": 1800
+  },
+  "ligand_seed": 17,
+  "preserve_sdf_coordinates": false
+}

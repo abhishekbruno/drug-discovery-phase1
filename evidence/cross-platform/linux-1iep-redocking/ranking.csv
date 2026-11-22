@@ -1,0 +1,2 @@
+rank,compound_id,best_score_kcal_mol,scoring_function,molecular_weight,logp,hbond_donors,hbond_acceptors,rotatable_bonds,tpsa
+1,imatinib,-12.749,vina,493.61500000000035,4.590320000000003,2,7,7,86.28

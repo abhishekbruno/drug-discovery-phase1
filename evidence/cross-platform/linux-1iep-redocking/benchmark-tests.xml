@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="1.470" timestamp="2026-11-13T18:24:48.477156+00:00" hostname="runnervm8axu0"><testcase classname="tests.benchmarks.test_saved_redocking" name="test_actual_saved_redocking_rmsd_and_outcome" time="0.014" /></testsuite></testsuites>

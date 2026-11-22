@@ -16,7 +16,7 @@ $env:VINA_EXECUTABLE = 'E:\project D1\tools\vina.exe'
 
 The UI provides:
 
-- **Experiments:** real rankings, failure records, interactive 3D ligand poses with receptor backbone/crystal overlay, per-pose scores, manifests, validation and downloads.
+- **Experiments:** searchable saved runs, status filters, persistent stage/progress counts, recovery controls, real rankings, failure records, interactive 3D ligand poses with receptor backbone/crystal overlay, per-pose scores, manifests, validation and downloads.
 - **New experiment:** PDB/mmCIF upload, SDF/CSV/SMILES ligand input, chain and reference selection, explicit water/cofactor handling, reference or manual grid, CPU budget, seed, exhaustiveness and pose count.
 - **Benchmark:** run genuine 1IEP/imatinib redocking with a measured RMSD outcome.
 - **Environment:** inspect actual installed package versions and the executable.
@@ -57,6 +57,9 @@ $env:PATH = 'E:\project D1\tools;' + $env:PATH
 # Resume unchanged input/configuration; successful results are retained
 & .\.venv\Scripts\dockpipe.exe run --config config/default.yaml --resume
 
+# Inspect saved state without starting calculations or requiring the UI
+& .\.venv\Scripts\dockpipe.exe status --job results/1iep-local-validation
+
 # Retry failed ligands in fresh attempt directories
 & .\.venv\Scripts\dockpipe.exe run --config config/default.yaml --resume --retry-failed
 
@@ -95,7 +98,9 @@ The checked-in `evidence/1iep/` directory contains observed validation, real pos
 
 ### Linux / WSL
 
-Linux/WSL is supported by the portable code and official Vina binary. **This session verified native Windows/Python 3.12; WSL was not installed, so Linux execution has not been tested here.** No GPU is used.
+Fresh-checkout integration tests pass on **Ubuntu 24.04 and Windows Server 2025 with Python 3.12.10**, in addition to the local Windows 11 verification. WSL is not installed on the development machine and has not been tested directly. No GPU is used.
+
+Full Linux 1IEP redocking also passed: top-pose RMSD **0.968343 Å**, score **−12.749 kcal/mol**. These differ slightly from the Windows calculation; both meet the 2 Å criterion. Raw numerical evidence and CI provenance are in `evidence/cross-platform/`.
 
 ```bash
 cd /path/to/drug-discovery
@@ -111,6 +116,12 @@ dockpipe ui
 ```
 
 Alternatively, `conda env create -f environment.yml` creates a Python environment; then install Vina with the same script. Core and UI direct dependencies are pinned in `pyproject.toml`; `requirements-windows.lock.txt` records the full verified Windows dependency set. Install that file in a new Windows venv for the exact verified package versions. It is not a conda lock or a verified Linux transitive lock. The installer records the executable SHA-256; its Windows download is checked against the build used here. Other platforms record the downloaded hash without claiming a publisher-signed checksum.
+
+## Automated verification
+
+The optional [Scientific checks workflow](https://github.com/abhishekbruno/drug-discovery-phase1/actions/workflows/scientific-checks.yml) installs the pinned tools into fresh virtual environments on Windows and Ubuntu. It runs the unit, frontend and real Vina integration tests, then performs full 1IEP redocking on Linux for relevant pushes. Pull requests run the test matrix; the full benchmark can also be started with **Run workflow**.
+
+Each run preserves environment versions and JUnit results for 14 days. The full benchmark preserves raw poses, scores, preparation logs, configuration and RMSD validation for 30 days, including failed runs. Dependency or scientific failures fail the workflow. CI uses CPU tools and is not required to run the app locally.
 
 ## Configuration and inputs
 
@@ -131,6 +142,10 @@ Use `config/default.yaml` as a template. Paths in YAML or JSON configuration res
 Each experiment preserves original input copies, their hashes, resolved configuration, software/executable information, grid, strict receptor preparation log and inventory, preparation manifests, and per-ligand attempt directories. Each completed calculation contains the real Vina log, exact argument vector, PDBQT poses, chemically reconstructed SDF poses and parsed energies. `report.json`, `report.md`, `ranking.csv`, `poses.csv`, and `status.csv` are generated automatically.
 
 Existing experiments are never silently replaced. Resume checks configuration, input hashes, software versions and executable hash, plus completed artifact inventory and metadata. Failed attempts remain and retries create new numbered directories. OS locks release when a process dies; interrupted work can be resumed. Fatal receptor preparation failures have `experiment.json` status and detailed preparation logs; no ranking is produced until receptor preparation succeeds.
+
+Retries checkpoint the previous completed attempt before replacing its status. If interrupted, resume starts a fresh attempt while retaining and verifying the older evidence; already successful ligands are reused. Parallel workers serialize experiment-manifest updates. A handled interruption records `interrupted`; an abrupt process termination may leave `running`, which can still be resumed after the process lock is released.
+
+New runs save the processing stage and counts of completed, successful and failed compounds. Counts describe compounds handled in the current invocation (including verified cached results on resume), not estimated docking time. The selected experiment's UI activity panel refreshes every three seconds; use **Open latest report** to load a newly written report. A saved running state does not prove that a process is still alive. Older experiments show their existing state and reports without inventing missing counts. Unreadable metadata/report errors are isolated so other experiments remain accessible. `dockpipe status --job <path-or-id>` provides the same read-only summary and exits 1 for missing experiments or unreadable metadata.
 
 Resolved experiment paths are absolute. **Do not relocate an active experiment and expect resume to match its identity.** The original pre-move calculation is retained as historical evidence; the independently rerun `1iep-local-validation` uses E-drive paths. For another relocation, preserve old evidence and create a new experiment in the new workspace.
 
@@ -159,3 +174,9 @@ Resolved experiment paths are absolute. **Do not relocate an active experiment a
 - The UI's backbone overlay is a coordinate inspection aid, not a full molecular graphics or interaction-analysis suite.
 
 Development checks and the earlier failures fixed during implementation are recorded in `docs/verification.md` and `work/` logs. No React app, cloud infrastructure, generative molecules, AlphaFold, Evo 2, animal simulation or PK simulation is included.
+
+Upstream repositories consulted for the workspace milestone and the implementation decisions drawn from them are recorded in [repository references](docs/repository-references.md).
+
+![Experiment activity and recovery controls](docs/images/workspace-milestone.jpg)
+
+The pictured validation run intentionally includes one invalid ligand to demonstrate failure isolation and retry controls.

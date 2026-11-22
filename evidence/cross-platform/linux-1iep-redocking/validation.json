@@ -1,0 +1,67 @@
+{
+  "status": "passed",
+  "criterion": "Top-scoring pose symmetry-aware heavy atom RMSD <= threshold in the original receptor frame; no superposition",
+  "threshold_angstrom": 2.0,
+  "top_scoring_pose": {
+    "pose_number": 1,
+    "heavy_atom_rmsd_angstrom": 0.9683428726019104,
+    "score_kcal_mol": -12.749
+  },
+  "lowest_rmsd_pose": {
+    "pose_number": 1,
+    "heavy_atom_rmsd_angstrom": 0.9683428726019104,
+    "score_kcal_mol": -12.749
+  },
+  "poses": [
+    {
+      "pose_number": 1,
+      "heavy_atom_rmsd_angstrom": 0.9683428726019104,
+      "score_kcal_mol": -12.749
+    },
+    {
+      "pose_number": 2,
+      "heavy_atom_rmsd_angstrom": 1.818517282873085,
+      "score_kcal_mol": -11.021
+    },
+    {
+      "pose_number": 3,
+      "heavy_atom_rmsd_angstrom": 12.434292196680616,
+      "score_kcal_mol": -10.531
+    },
+    {
+      "pose_number": 4,
+      "heavy_atom_rmsd_angstrom": 2.2117902801222455,
+      "score_kcal_mol": -10.305
+    },
+    {
+      "pose_number": 5,
+      "heavy_atom_rmsd_angstrom": 13.231823023057462,
+      "score_kcal_mol": -10.213
+    },
+    {
+      "pose_number": 6,
+      "heavy_atom_rmsd_angstrom": 11.9378946500493,
+      "score_kcal_mol": -9.785
+    },
+    {
+      "pose_number": 7,
+      "heavy_atom_rmsd_angstrom": 12.2645296248539,
+      "score_kcal_mol": -9.644
+    },
+    {
+      "pose_number": 8,
+      "heavy_atom_rmsd_angstrom": 12.64618084747435,
+      "score_kcal_mol": -9.639
+    },
+    {
+      "pose_number": 9,
+      "heavy_atom_rmsd_angstrom": 6.630784648445013,
+      "score_kcal_mol": -9.596
+    }
+  ],
+  "reference": "PDB 1IEP chain A residue STI 201; CCD bond orders, original experimental coordinates",
+  "reference_sha256": "c83a6cb14e36100d24729dd69fb3e210726638a3291b94c2c245e64e0854063c",
+  "method": "All chirality-aware identical-graph mappings; minimum in-place heavy atom RMSD",
+  "caveat": "Passing one redocking case is not general validation of affinity ranking or prospective screening.",
+  "protocol": "Official Vina tutorial box; raw 1IEP chain A prepared strictly with Meeko; chloride and water removal recorded; de novo ETKDG ligand conformer"
+}
